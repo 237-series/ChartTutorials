@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct ChartTutorialsApp: App {
+    @StateObject private var controller = DataController.shared
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.managedObjectContext, controller.container.viewContext)
         }
     }
 }
