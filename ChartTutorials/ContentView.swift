@@ -129,7 +129,7 @@ enum StepsDateInterval: String, CaseIterable {
         switch self {
             
         case .daily:
-            return 1
+            return 0
         case .weekly:
             return 7
         case .monthly:
@@ -142,11 +142,39 @@ enum StepsDateInterval: String, CaseIterable {
     }
 }
 
+final class ViewModel: ObservableObject {
+    
+}
+
 struct ContentView: View {
     @State private var selection:StepsDateInterval = .daily
     @State private var refreshingID = UUID()
-    @FetchRequest(sortDescriptors: [SortDescriptor(\.dateAt, order: .reverse)]) var stepList: FetchedResults<Step>
+    @FetchRequest(sortDescriptors: [SortDescriptor(\.dateAt)]) var stepList: FetchedResults<Step>
     @State private var isShow = false
+    
+    @State private var selectedDateAt: Date?
+    @FetchRequest(sortDescriptors: [SortDescriptor(\.dateAt, order:.reverse)]) private var selectedSteps: FetchedResults<Step>
+    
+    
+    func updateSelection (at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        let xPos = location.x - geometry[proxy.plotAreaFrame].origin.x
+        guard let date: Date = proxy.value(atX: xPos) else {
+            return
+        }
+        guard let dateAt = Calendar.current.date(bySettingHour: date.getHours(), minute: 0, second: 0, of: date) else {
+            return
+        }
+        selectedDateAt = dateAt
+        selectedSteps.nsPredicate = NSPredicate(format: "dateAt = %@", dateAt as NSDate)
+    }
+    
+    func getTimeCenter(date: Date) -> Date? {
+        guard let dateAt = Calendar.current.date(bySettingHour: date.getHours(), minute: 30, second: 0, of: date) else {
+            return nil
+        }
+        
+        return dateAt
+    }
     
     func totalStepCount() -> String {
         var count = 0
@@ -179,10 +207,16 @@ struct ContentView: View {
                     }
                     Text("오늘")
                 }
+                
                 .font(.subheadline)
                 .foregroundColor(.gray)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            
+                .onTapGesture {
+                    selectedDateAt = nil
+                }
+                .opacity(selectedDateAt == nil ? 1 : 0)
+                
+                
                 
                 Chart {
                     if isShow {
@@ -197,9 +231,43 @@ struct ContentView: View {
 //                                Text("\(step.steps)")
 //                            }
                         }
+                        
+                        if let dateAt = selectedDateAt, let steps = selectedSteps.first, let showingDate = getTimeCenter(date: dateAt) {
+                            RuleMark(x: .value("selected item", showingDate))
+                                .annotation(position: .top, alignment: .top) {
+                                    VStack {
+                                        VStack(alignment: .leading) {
+                                            Text("총")
+                                            HStack {
+                                                Text("\(steps.steps)")
+                                                    .font(.largeTitle)
+                                                    .foregroundColor(.black)
+                                                Text("걸음")
+                                            }
+                                            Text("\(dateAt.dateString())")
+                                        }
+                                    }
+                                    
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    
+                                }
+                        }
 
                     }
                 }
+                .chartXScale(domain: stepList.first!.dateAt!...stepList.last!.dateAt!)
+                .chartOverlay(content: { proxy in
+                    GeometryReader { geo in
+                        ZStack(alignment: .top) {
+                            Rectangle().fill(.clear).contentShape(Rectangle())
+                                .onTapGesture { location in
+                                    updateSelection(at: location, proxy: proxy, geometry: geo)
+                                }
+                        }
+                    }
+                })
                 .id(refreshingID)
                 
                 
@@ -231,6 +299,7 @@ struct ContentView: View {
             }
             
             .onChange(of: selection, perform: { newValue in
+                selectedDateAt = nil
                 var dateComponent = DateComponents()
                 dateComponent.day = -selection.interval
                 

@@ -8,6 +8,30 @@
 import Foundation
 import CoreData
 
+extension Date {
+    func dateString(_ date:Date? = nil) -> String {
+        var targetDate:Date = self
+        if let date = date {
+            targetDate = date
+        }
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
+        dateFormatter.timeZone = .current
+        
+        return dateFormatter.string(from: targetDate)
+    }
+    
+    func getHours() -> Int {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "HH"
+        dateFormatter.timeZone = .current
+        
+        return Int(dateFormatter.string(from: self)) ?? 0
+    }
+}
+
+
 class DataController: ObservableObject {
     let container = NSPersistentContainer(name: "StepsModel")
     static let shared = DataController()
